@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Jogo de Sobrevivência</title>
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+<style>
+* { touch-action: none; }
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #020617;
+    color: white;
+    text-align: center;
+    overflow: hidden;
+}
+
+/* Telas */
+#menu, #deviceMenu, #gameArea, #reportBox {
+    display: none;
+}
+
+#menu {
+    display: block;
+    padding-top: 90px;
+}
+
+/* Botões */
+button {
+    padding: 15px 30px;
+    margin: 8px;
+    font-size: 18px;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    background: #38bdf8;
+}
+
+button:active {
+    background: #0ea5e9;
+}
+
+textarea {
+    width: 90%;
+    height: 120px;
+    font-size: 16px;
+    border-radius: 10px;
+}
+
+/* Jogo */
+canvas {
+    background: #0f172a;
+    display: block;
+    margin: auto;
+    border: 2px solid #38bdf8;
+}
+
+#info {
+    font-size: 18px;
+    margin: 10px;
+}
+
+/* Controles Mobile */
+#mobileControls {
+    display: none;
+    margin-top: 10px;
+}
+
+.control-btn {
+    width: 70px;
+    height: 70px;
+    font-size: 26px;
+    margin: 6px;
+    border-radius: 50%;
+}
+</style>
+</head>
+
+<body>
+
+<!-- MENU PRINCIPAL -->
+<div id="menu">
+    <h1>🎮 Jogo de Sobrevivência</h1>
+    <button onclick="openDeviceMenu()">📱🖥️ Dispositivo</button>
+    <button onclick="showHelp()">📖 Instruções</button>
+    <button onclick="openReport()">🐞 Relatar erros</button>
+    <button onclick="startGame()">▶ Jogar</button>
+</div>
+
+<!-- MENU DISPOSITIVO -->
+<div id="deviceMenu">
+    <h2>Escolha o dispositivo</h2>
+    <button onclick="setDevice('pc')">🖥️ PC</button>
+    <button onclick="setDevice('mobile')">📱 Celular</button><br><br>
+    <button onclick="backToMenu()">⬅ Voltar</button>
+</div>
+
+<!-- RELATAR ERROS -->
+<div id="reportBox">
+    <h2>🐞 Relatar erro</h2>
+    <p>Descreva o erro encontrado no jogo:</p>
+    <textarea id="reportText"></textarea><br><br>
+    <button onclick="sendReport()">📨 Enviar</button>
+    <button onclick="closeReport()">❌ Cancelar</button>
+</div>
+
+<!-- JOGO -->
+<div id="gameArea">
+    <div id="info">Pontos: <span id="pontos">0</span></div>
+    <canvas id="game" width="600" height="400"></canvas>
+
+    <!-- CONTROLES MOBILE -->
+    <div id="mobileControls">
+        <div>
+            <button id="btnUp" class="control-btn">⬆</button>
+        </div>
+        <div>
+            <button id="btnLeft" class="control-btn">⬅</button>
+            <button id="btnDown" class="control-btn">⬇</button>
+            <button id="btnRight" class="control-btn">➡</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/* ELEMENTOS */
+const menu = document.getElementById("menu");
+const deviceMenu = document.getElementById("deviceMenu");
+const gameArea = document.getElementById("gameArea");
+const reportBox = document.getElementById("reportBox");
+const mobileControls = document.getElementById("mobileControls");
+const pontosEl = document.getElementById("pontos");
+
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+/* ESTADO */
+let device = "pc";
+let rodando = false;
+let gameOver = false;
+let pontos = 0;
+
+/* PLAYER */
+const player = { x: 300, y: 200, size: 15, speed: 4 };
+
+/* CONTROLES */
+const keys = { up: false, down: false, left: false, right: false };
+let inimigos = [];
+
+/* MENU */
+function openDeviceMenu() {
+    menu.style.display = "none";
+    deviceMenu.style.display = "block";
+}
+function backToMenu() {
+    deviceMenu.style.display = "none";
+    menu.style.display = "block";
+}
+function setDevice(t) {
+    device = t;
+    alert("Dispositivo selecionado: " + (t === "pc" ? "PC" : "Celular"));
+    backToMenu();
+}
+function showHelp() {
+    alert(
+        "📖 INSTRUÇÕES\n\n" +
+        "🟢 Você é o jogador\n" +
+        "🔴 Evite os inimigos\n\n" +
+        "🖥️ PC: WASD ou Setas\n" +
+        "📱 Celular: Segure os botões\n\n" +
+        "🎯 Objetivo: sobreviver!"
+    );
+}
+
+/* RELATOS */
+function openReport() {
+    menu.style.display = "none";
+    reportBox.style.display = "block";
+}
+function closeReport() {
+    reportBox.style.display = "none";
+    menu.style.display = "block";
+}
+function sendReport() {
+    const text = reportText.value.trim();
+    if (text.length < 5) {
+        alert("Descreva melhor o erro.");
+        return;
+    }
+
+    const reports = JSON.parse(localStorage.getItem("reports") || "[]");
+    reports.push({
+        mensagem: text,
+        data: new Date().toLocaleString(),
+        dispositivo: device
+    });
+
+    localStorage.setItem("reports", JSON.stringify(reports));
+    reportText.value = "";
+    alert("✅ Erro enviado! Obrigado.");
+    closeReport();
+}
+
+/* INICIAR JOGO */
+function startGame() {
+    menu.style.display = "none";
+    deviceMenu.style.display = "none";
+    reportBox.style.display = "none";
+    gameArea.style.display = "block";
+
+    if (device === "mobile") mobileControls.style.display = "block";
+    rodando = true;
+    update();
+}
+
+/* CONTROLES PC */
+document.addEventListener("keydown", e => {
+    if (!rodando || device !== "pc") return;
+    const k = e.key.toLowerCase();
+    if (k === "w" || k === "arrowup") keys.up = true;
+    if (k === "s" || k === "arrowdown") keys.down = true;
+    if (k === "a" || k === "arrowleft") keys.left = true;
+    if (k === "d" || k === "arrowright") keys.right = true;
+});
+document.addEventListener("keyup", e => {
+    const k = e.key.toLowerCase();
+    if (k === "w" || k === "arrowup") keys.up = false;
+    if (k === "s" || k === "arrowdown") keys.down = false;
+    if (k === "a" || k === "arrowleft") keys.left = false;
+    if (k === "d" || k === "arrowright") keys.right = false;
+});
+
+/* CONTROLES MOBILE */
+function bindButton(btn, dir) {
+    btn.addEventListener("touchstart", e => {
+        e.preventDefault();
+        keys[dir] = true;
+    });
+    btn.addEventListener("touchend", e => {
+        e.preventDefault();
+        keys[dir] = false;
+    });
+    btn.addEventListener("touchcancel", () => keys[dir] = false);
+}
+
+bindButton(btnUp, "up");
+bindButton(btnDown, "down");
+bindButton(btnLeft, "left");
+bindButton(btnRight, "right");
+
+/* JOGO */
+function criarInimigo() {
+    if (!rodando) return;
+    inimigos.push({
+        x: Math.random() * canvas.width,
+        y: 0,
+        size: 15,
+        speed: 2 + Math.random() * 2
+    });
+}
+setInterval(criarInimigo, 1000);
+
+function colisao(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y) < a.size + b.size;
+}
+
+function update() {
+    if (!rodando || gameOver) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (keys.up) player.y -= player.speed;
+    if (keys.down) player.y += player.speed;
+    if (keys.left) player.x -= player.speed;
+    if (keys.right) player.x += player.speed;
+
+    player.x = Math.max(player.size, Math.min(canvas.width - player.size, player.x));
+    player.y = Math.max(player.size, Math.min(canvas.height - player.size, player.y));
+
+    ctx.fillStyle = "#22c55e";
+    ctx.beginPath();
+    ctx.arc(player.x, player.y, player.size, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#ef4444";
+    inimigos.forEach((i, idx) => {
+        i.y += i.speed;
+        ctx.beginPath();
+        ctx.arc(i.x, i.y, i.size, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (colisao(player, i)) {
+            gameOver = true;
+            alert("💀 GAME OVER\nPontos: " + pontos);
+            location.reload();
+        }
+
+        if (i.y > canvas.height) {
+            inimigos.splice(idx, 1);
+            pontos++;
+            pontosEl.innerText = pontos;
+        }
+    });
+
+    requestAnimationFrame(update);
+}
+</script>
+
+</body>
+</html>
+
+
+
+
+
+
